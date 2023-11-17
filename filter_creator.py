@@ -150,15 +150,16 @@ class FilterCreator:
         self.on_mouse_click(event, x, y, flags, param, source="filtered")
     
     def on_mouse_click(self, event, x, y, flags, param, source):
-        # Handle the mouse click event based on the source (original or filtered)
-        selected_index = self.filter_list.curselection()
-        if selected_index and (self.current_screenshot is not None or self.current_filtered_image is not None):
-            selected_filter = self.filters[selected_index[0]]
-            if hasattr(selected_filter, 'on_mouse_click'):
-                # Pass the appropriate image based on the source
-                source_image = self.current_filtered_image if source == "filtered" else self.current_screenshot
-                selected_filter.on_mouse_click(event, x, y, flags, param, source_image)
-                self.apply_filters()
+        if event == cv.EVENT_LBUTTONDOWN:
+            # Handle the mouse click event based on the source (original or filtered)
+            selected_index = self.filter_list.curselection()
+            if selected_index and (self.current_screenshot is not None or self.current_filtered_image is not None):
+                selected_filter = self.filters[selected_index[0]]
+                if hasattr(selected_filter, 'on_mouse_click'):
+                    # Pass the appropriate image based on the source
+                    source_image = self.current_filtered_image if source == "filtered" else self.current_screenshot
+                    selected_filter.on_mouse_click(event, x, y, flags, param, source_image)
+                    self.apply_filters()
 
     def save_filters(self):
         preset_name = self.preset_name_entry.get()
@@ -195,7 +196,7 @@ class FilterCreator:
         print(f"Preset '{preset_name}' saved.")
 
 def main():
-    filter = FilterCreator("<WINDOW_NAME>")
+    filter = FilterCreator("Toontown Offline")
     filter.start()
 
 if __name__ == "__main__":

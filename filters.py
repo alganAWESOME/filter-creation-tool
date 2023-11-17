@@ -36,11 +36,9 @@ class BaseFilter:
         }
 
 class HSVFilter(BaseFilter):
-    name = "HSV Filter"
-
     def __init__(self):
         super().__init__()
-        self.config = {'HSV_ranges': [{'HSV_min':[0,0,0], 'HSV_max':[179,255,255]}]}
+        self.config = {'HSV_ranges': [{'center':[0,0,0], 'thresholds':[0,0,0]}]}
         self.hue_threshold = 0
         self.saturation_threshold = 0
         self.value_threshold = 0
@@ -60,71 +58,73 @@ class HSVFilter(BaseFilter):
         hue_scale.pack()
 
         Label(config_frame, text="Saturation Threshold:").pack()
-        sat_scale = Scale(config_frame, from_=0, to=128, orient=HORIZONTAL,
+        sat_scale = Scale(config_frame, from_=0, to=255, orient=HORIZONTAL,
                           command=lambda val: self.on_threshold_change(val, update_callback, 1))
         sat_scale.set(self.saturation_threshold)
         sat_scale.pack()
 
         Label(config_frame, text="Value Threshold:").pack()
-        val_scale = Scale(config_frame, from_=0, to=128, orient=HORIZONTAL,
+        val_scale = Scale(config_frame, from_=0, to=255, orient=HORIZONTAL,
                           command=lambda val: self.on_threshold_change(val, update_callback, 2))
         val_scale.set(self.value_threshold)
         val_scale.pack()
         
     def on_mouse_click(self, event, x, y, flags, param, image, source=None):
+        selected_range = self.config['HSV_ranges'][0]
         # Handle the mouse click event
         if event == cv.EVENT_LBUTTONDOWN and image is not None:
-            self.clicked_color = image[y, x]
-            self.update_HSV_range()
+            bgr_color = image[y, x]
+            bgr_color_image = np.uint8([[bgr_color]])
+            hsv_color = cv.cvtColor(bgr_color_image, cv.COLOR_BGR2HSV)[0][0]
+            selected_range['center'] = hsv_color.tolist()
 
-    def update_HSV_range(self):
-        if self.clicked_color is not None:
-            # Convert the BGR color to HSV color space
-            bgr_color = np.uint8([[self.clicked_color]])
-            hsv_color = cv.cvtColor(bgr_color, cv.COLOR_BGR2HSV)[0][0]
+    def on_threshold_change(self, val, update_callback, h_s_v):
+        if not self.config['HSV_ranges']:
+            # If no range is defined, return
+            return
 
-            # Calculate the minimum and maximum HSV values, wrapping the Hue
-            hue_min = (hsv_color[0] - self.hue_threshold) % 180
-            hue_max = (hsv_color[0] + self.hue_threshold) % 180
-            sat_min = max(hsv_color[1] - self.saturation_threshold, 0)
-            sat_max = min(hsv_color[1] + self.saturation_threshold, 255)
-            val_min = max(hsv_color[2] - self.value_threshold, 0)
-            val_max = min(hsv_color[2] + self.value_threshold, 255)
+        # Assuming we are modifying the thresholds of the first HSV range
+        selected_range = self.config['HSV_ranges'][0]
 
-            # If the range includes the wrap-around, split into two ranges
-            if hue_min > hue_max:
-                self.config['HSV_ranges'] = [
-                    {"HSV_min": [hue_min, sat_min, val_min], "HSV_max": [179, sat_max, val_max]},
-                    {"HSV_min": [0, sat_min, val_min], "HSV_max": [hue_max, sat_max, val_max]}
-                ]
-            else:
-                self.config['HSV_ranges'] = [{"HSV_min": [hue_min, sat_min, val_min], "HSV_max": [hue_max, sat_max, val_max]}]
+        # Update the threshold based on whether h_s_v is 0 (hue), 1 (saturation), or 2 (value)
+        selected_range['thresholds'][h_s_v] = int(val)
+
+        update_callback()
 
     def apply(self, image):
         if not self.config['HSV_ranges']:
             return image
 
-        # Initialize a mask for all zeros (no pixels selected)
         final_mask = np.zeros(image.shape[:2], dtype=np.uint8)
-
         hsv_image = cv.cvtColor(image, cv.COLOR_BGR2HSV)
-        for range in self.config['HSV_ranges']:
-            lower_bound = np.array(range['HSV_min'], dtype=np.uint8)
-            upper_bound = np.array(range['HSV_max'], dtype=np.uint8)
-            current_mask = cv.inRange(hsv_image, lower_bound, upper_bound)
-            final_mask = cv.bitwise_or(final_mask, current_mask)
+
+        for hsv_range in self.config['HSV_ranges']:
+            center, thresholds = hsv_range['center'], hsv_range['thresholds']
+            hsv_ranges = self.calc_hsv_ranges(center, thresholds)
+            
+            for range in hsv_ranges:
+                lower_bound = np.array(range['HSV_min'], dtype=np.uint8)
+                upper_bound = np.array(range['HSV_max'], dtype=np.uint8)
+                current_mask = cv.inRange(hsv_image, lower_bound, upper_bound)
+                final_mask = cv.bitwise_or(final_mask, current_mask)
 
         return cv.bitwise_and(image, image, mask=final_mask)
+    
+    def calc_hsv_ranges(self, center, thresholds):
+        hue_min = (center[0] - thresholds[0]) % 180
+        hue_max = (center[0] + thresholds[0]) % 180
+        sat_min = max(center[1] - thresholds[1], 0)
+        sat_max = min(center[1] + thresholds[1], 255)
+        val_min = max(center[2] - thresholds[2], 0)
+        val_max = min(center[2] + thresholds[2], 255)
 
-    def on_threshold_change(self, val, update_callback, h_s_v):
-        if h_s_v == 0:
-            self.hue_threshold = int(val)
-        elif h_s_v == 1:
-            self.saturation_threshold = int(val)
+        if hue_min > hue_max:
+            return [
+                {"HSV_min": [hue_min, sat_min, val_min], "HSV_max": [179, sat_max, val_max]},
+                {"HSV_min": [0, sat_min, val_min], "HSV_max": [hue_max, sat_max, val_max]}
+            ]
         else:
-            self.value_threshold = int(val)
-        self.update_HSV_range()
-        update_callback()
+            return [{"HSV_min": [hue_min, sat_min, val_min], "HSV_max": [hue_max, sat_max, val_max]}]
 
     def serialize_config(self):
         # for JSON serialization
