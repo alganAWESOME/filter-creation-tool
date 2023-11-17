@@ -6,6 +6,15 @@ This project lets you quickly create and save image filter presets with OpenCV. 
 
 Just clone the repo.
 
+Requirements:
+```
+pip install opencv-python
+pip install pywin32
+pip install numpy
+```
+
+It's currently Windows-only because of `window_capture.py`.
+
 # Usage
 
 ## Create a filter preset with `filter_creator.py`
@@ -22,7 +31,7 @@ This is an API to easily use the filters you create. It's used as follows:
 ```py
 from apply_filter import ApplyFilter
 
-my_filter = ApplyFilter("<filter_preset_name>")
+my_filter = ApplyFilter("<filter_preset_name_that_you_wrote>")
 my_filtered_image = my_filter.apply(image)
 ```
 
