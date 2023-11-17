@@ -1,6 +1,6 @@
 import os
 import json
-import filters.filters as filts
+import filters
 
 class ApplyFilter:
     def __init__(self, preset_name):
@@ -23,7 +23,7 @@ class ApplyFilter:
         for filter_config in presets[preset_name]:
             filter_type = filter_config["type"]
 
-            filter_obj = getattr(filts, filter_type)()
+            filter_obj = getattr(filters, filter_type)()
             filter_obj.config = filter_config["config"]
             preset_filters.append(filter_obj)
 
