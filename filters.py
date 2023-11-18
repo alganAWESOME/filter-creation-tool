@@ -45,18 +45,23 @@ class HSVFilter(BaseFilter):
         for widget in config_frame.winfo_children():
             widget.destroy()
 
-        # Listbox for displaying current filters
+       # Listbox for displaying current filters
         self.filter_listbox = Listbox(config_frame)
         self.filter_listbox.pack()
-        self.filter_listbox.bind('<<ListboxSelect>>', lambda e: self.on_filter_select(e, update_callback))
+        self.filter_listbox.bind('<<ListboxSelect>>', lambda e: self.on_filter_select(e, update_callback)) 
 
+        self._update_filter_listbox()
+
+        # Buttons for adding/deleting/configuring filters
+        Button(config_frame, text="Add Range", command=lambda: self.add_filter(update_callback)).pack()
+        Button(config_frame, text="Delete Range", command=lambda: self.delete_filter(update_callback)).pack()
+        Button(config_frame, text="Configure", command=lambda: self.configure_range(update_callback)).pack()
+
+    def _update_filter_listbox(self):
         # Add existing  filters to the listbox
         self.filter_listbox.delete(0, END)
         for i, _ in enumerate(self.config['HSV_ranges']):
             self.filter_listbox.insert(END, f"Filter {i}")
-
-        # Add a button to add a new filter
-        Button(config_frame, text="Add Filter", command=lambda: self.add_filter(update_callback)).pack()
 
     def add_filter(self, update_callback):
         # Add a new filter configuration with default values
@@ -65,11 +70,21 @@ class HSVFilter(BaseFilter):
         self.filter_listbox.insert(END, f"Filter {len(self.config['HSV_ranges'])-1}")
         update_callback()
 
+    def delete_filter(self, update_callback):
+        if self.selected_filter_index is None:
+            return
+
+        if 0 <= self.selected_filter_index < len(self.config['HSV_ranges']):
+            del self.config['HSV_ranges'][self.selected_filter_index]
+
+        self._update_filter_listbox()
+        update_callback()
+
     def on_filter_select(self, event, update_callback):
         selection = event.widget.curselection()
         if selection:
             self.selected_filter_index = selection[0]
-            self.configure_range(update_callback)
+            #self.configure_range(update_callback)
 
     def configure_range(self, update_callback):
         if self.selected_filter_index is None:
