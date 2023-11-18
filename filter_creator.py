@@ -45,8 +45,9 @@ class FilterCreator:
 
         # List all classes of the filters module
         filter_options = [attr for attr in dir(filters) 
-              if isinstance(getattr(filters, attr), type) and 
-              getattr(filters, attr).__module__ == filters.__name__]
+                        if isinstance(getattr(filters, attr), type) and 
+                        getattr(filters, attr).__module__ == filters.__name__ and 
+                        attr != 'BaseFilter']
 
         # Create buttons for each filter type
         for option in filter_options:
@@ -59,6 +60,8 @@ class FilterCreator:
             filter_class = getattr(filters, filter_name)
             # Instantiate the filter class
             new_filter = filter_class()
+            new_filter.config_frame = self.config_frame
+            new_filter.update_callback = self.update_filters
         except AttributeError:
             # Raised if filter_name does not correspond to a class in filters module
             raise ValueError("Unknown filter type") from None
@@ -83,7 +86,7 @@ class FilterCreator:
 
         if self.filter_index is not None:
             selected_filter = self.filters[self.filter_index]
-            selected_filter.configure(self.config_frame, self.update_filters)
+            selected_filter.configure()
 
     def move_filter_up(self):
         selected_index = self.filter_list.curselection()

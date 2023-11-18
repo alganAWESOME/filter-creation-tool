@@ -4,6 +4,8 @@ from tkinter import *
 
 class BaseFilter:
     def __init__(self):
+        self.config_frame = None
+        self.update_callback = None
         pass
 
     def configure(self):
@@ -39,23 +41,20 @@ class HSVFilter(BaseFilter):
     def __init__(self):
         super().__init__()
         self.config = {'HSV_ranges': []}
+        self.selected_filter_index = None
 
-    def configure(self, config_frame, update_callback):
-        # Clear any existing widgets
-        for widget in config_frame.winfo_children():
-            widget.destroy()
-
+    def configure(self):
        # Listbox for displaying current filters
-        self.filter_listbox = Listbox(config_frame)
+        self.filter_listbox = Listbox(self.config_frame)
         self.filter_listbox.pack()
-        self.filter_listbox.bind('<<ListboxSelect>>', lambda e: self.on_filter_select(e, update_callback)) 
+        self.filter_listbox.bind('<<ListboxSelect>>', lambda e: self.on_filter_select(e)) 
 
         self._update_filter_listbox()
 
         # Buttons for adding/deleting/configuring filters
-        Button(config_frame, text="Add Range", command=lambda: self.add_filter(update_callback)).pack()
-        Button(config_frame, text="Delete Range", command=lambda: self.delete_filter(update_callback)).pack()
-        Button(config_frame, text="Configure", command=lambda: self.configure_range(update_callback)).pack()
+        Button(self.config_frame, text="Add Range", command = self.add_filter).pack()
+        Button(self.config_frame, text="Delete Range", command = self.delete_filter).pack()
+        Button(self.config_frame, text="Configure", command = self.configure_range).pack()
 
     def _update_filter_listbox(self):
         # Add existing  filters to the listbox
@@ -63,14 +62,14 @@ class HSVFilter(BaseFilter):
         for i, _ in enumerate(self.config['HSV_ranges']):
             self.filter_listbox.insert(END, f"Filter {i}")
 
-    def add_filter(self, update_callback):
+    def add_filter(self):
         # Add a new filter configuration with default values
         new_filter_config = {'center': [0, 0, 0], 'thresholds': [89, 255, 255]}
         self.config['HSV_ranges'].append(new_filter_config)
         self.filter_listbox.insert(END, f"Filter {len(self.config['HSV_ranges'])-1}")
-        update_callback()
+        self.update_callback()
 
-    def delete_filter(self, update_callback):
+    def delete_filter(self):
         if self.selected_filter_index is None:
             return
 
@@ -78,15 +77,14 @@ class HSVFilter(BaseFilter):
             del self.config['HSV_ranges'][self.selected_filter_index]
 
         self._update_filter_listbox()
-        update_callback()
+        self.update_callback()
 
-    def on_filter_select(self, event, update_callback):
+    def on_filter_select(self, event):
         selection = event.widget.curselection()
         if selection:
             self.selected_filter_index = selection[0]
-            #self.configure_range(update_callback)
 
-    def configure_range(self, update_callback):
+    def configure_range(self):
         if self.selected_filter_index is None:
             return
         
@@ -99,23 +97,26 @@ class HSVFilter(BaseFilter):
         # Creating sliders for each HSV component within the config_frame
         Label(slider_window, text="Hue Threshold:").pack()
         hue_scale = Scale(slider_window, from_=0, to=89, orient=HORIZONTAL,
-                          command=lambda val: self.on_threshold_change(val, update_callback, 0))
+                          command=lambda val: self.on_threshold_change(val, 0))
         hue_scale.set(selected_filter['thresholds'][0])
         hue_scale.pack()
 
         Label(slider_window, text="Saturation Threshold:").pack()
         sat_scale = Scale(slider_window, from_=0, to=255, orient=HORIZONTAL,
-                          command=lambda val: self.on_threshold_change(val, update_callback, 1))
+                          command=lambda val: self.on_threshold_change(val, 1))
         sat_scale.set(selected_filter['thresholds'][1])
         sat_scale.pack()
 
         Label(slider_window, text="Value Threshold:").pack()
         val_scale = Scale(slider_window, from_=0, to=255, orient=HORIZONTAL,
-                          command=lambda val: self.on_threshold_change(val, update_callback, 2))
+                          command=lambda val: self.on_threshold_change(val, 2))
         val_scale.set(selected_filter['thresholds'][2])
         val_scale.pack()
         
     def on_mouse_click(self, event, x, y, flags, param, image, source=None):
+        if self.selected_filter_index is None:
+            return
+        
         selected_range = self.config['HSV_ranges'][self.selected_filter_index]
         # Handle the mouse click event
         if event == cv.EVENT_LBUTTONDOWN and image is not None:
@@ -124,7 +125,7 @@ class HSVFilter(BaseFilter):
             hsv_color = cv.cvtColor(bgr_color_image, cv.COLOR_BGR2HSV)[0][0]
             selected_range['center'] = hsv_color.tolist()
 
-    def on_threshold_change(self, val, update_callback, h_s_v):
+    def on_threshold_change(self, val, h_s_v):
         if not self.config['HSV_ranges']:
             # If no range is defined, return
             return
@@ -135,7 +136,7 @@ class HSVFilter(BaseFilter):
         # Update the threshold based on whether h_s_v is 0 (hue), 1 (saturation), or 2 (value)
         selected_range['thresholds'][h_s_v] = int(val)
 
-        update_callback()
+        self.update_callback()
 
     def apply(self, image):
         if not self.config['HSV_ranges']:
@@ -193,21 +194,17 @@ class ContrastFilter(BaseFilter):
         super().__init__()
         self.config = {'Contrast':1.0}
 
-    def configure(self, config_frame, update_callback):
-        # Clear any existing widgets in the configuration frame
-        for widget in config_frame.winfo_children():
-            widget.destroy()
-
-        # Creating a slider for the contrast level within the config_frame
-        Label(config_frame, text="Contrast Level:").pack()
-        contrast_scale = Scale(config_frame, from_=0.0, to=3.0, resolution=0.1, orient=HORIZONTAL,
-                               command=lambda val: self.on_contrast_change(val, update_callback))
+    def configure(self):
+        # Creating a slider for the contrast level within the self.config_frame
+        Label(self.config_frame, text="Contrast Level:").pack()
+        contrast_scale = Scale(self.config_frame, from_=0.0, to=3.0, resolution=0.1, orient=HORIZONTAL,
+                               command = self.on_contrast_change)
         contrast_scale.set(self.config['Contrast'])
         contrast_scale.pack()
 
-    def on_contrast_change(self, val, update_callback):
+    def on_contrast_change(self, val):
         self.config['Contrast'] = float(val)
-        update_callback()
+        self.update_callback()
 
     def apply(self, image):
         # Convert to float for more precision for transformations
@@ -226,21 +223,17 @@ class SaturationFilter(BaseFilter):
         super().__init__()
         self.config = {'Saturation':1.0}
 
-    def configure(self, config_frame, update_callback):
-        # Clear any existing widgets in the configuration frame
-        for widget in config_frame.winfo_children():
-            widget.destroy()
-
-        # Creating a slider for the saturation level within the config_frame
-        Label(config_frame, text="Saturation Level:").pack()
-        sat_scale = Scale(config_frame, from_=0.0, to=3.0, resolution=0.1, orient=HORIZONTAL,
-                          command=lambda val: self.on_saturation_change(val, update_callback))
+    def configure(self):
+        # Creating a slider for the saturation level within the self.config_frame
+        Label(self.config_frame, text="Saturation Level:").pack()
+        sat_scale = Scale(self.config_frame, from_=0.0, to=3.0, resolution=0.1, orient=HORIZONTAL,
+                          command = self.on_saturation_change)
         sat_scale.set(self.config['Saturation'])
         sat_scale.pack()
 
-    def on_saturation_change(self, val, update_callback):
+    def on_saturation_change(self, val):
         self.config['Saturation'] = float(val)
-        update_callback()
+        self.update_callback()
 
     def apply(self, image):
         if self.config['Saturation'] == 1.0:  # No change in saturation
@@ -253,3 +246,30 @@ class SaturationFilter(BaseFilter):
         adjusted_image = cv.cvtColor(hsv_image.astype("uint8"), cv.COLOR_HSV2BGR)
         return adjusted_image
 
+# class DilationFilter(BaseFilter):
+#     def __init__(self):
+#         super().__init__()
+#         self.config = {'kernel_size': 3}  # Default kernel size
+
+#     def configure(self, config_frame, update_callback):
+#         # Implementation for configuration UI with a slider for kernel_size
+#         # ...
+
+#     def apply(self, image):
+#         kernel_size = self.config['kernel_size']
+#         kernel = np.ones((kernel_size, kernel_size), np.uint8)
+#         return cv.dilate(image, kernel, iterations=1)
+    
+# class ErosionFilter(BaseFilter):
+#     def __init__(self):
+#         super().__init__()
+#         self.config = {'kernel_size': 3}  # Default kernel size
+
+#     def configure(self, config_frame, update_callback):
+#         # Implementation for configuration UI with a slider for kernel_size
+#         # ...
+
+#     def apply(self, image):
+#         kernel_size = self.config['kernel_size']
+#         kernel = np.ones((kernel_size, kernel_size), np.uint8)
+#         return cv.erode(image, kernel, iterations=1)
