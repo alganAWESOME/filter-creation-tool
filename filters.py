@@ -4,9 +4,9 @@ from tkinter import *
 
 class BaseFilter:
     def __init__(self):
+        self.config = None
         self.config_frame = None
         self.update_callback = None
-        pass
 
     def configure(self):
         raise NotImplementedError
@@ -64,7 +64,7 @@ class HSVFilter(BaseFilter):
 
     def add_filter(self):
         # Add a new filter configuration with default values
-        new_filter_config = {'center': [0, 0, 0], 'thresholds': [89, 255, 255]}
+        new_filter_config = {'center': [0, 0, 0], 'thresholds': [89//2, 255//2, 255//2]}
         self.config['HSV_ranges'].append(new_filter_config)
         self.filter_listbox.insert(END, f"Filter {len(self.config['HSV_ranges'])-1}")
         self.update_callback()
@@ -188,8 +188,6 @@ class HSVFilter(BaseFilter):
         }
 
 class ContrastFilter(BaseFilter):
-    name = "Contrast Filter"
-
     def __init__(self):
         super().__init__()
         self.config = {'Contrast':1.0}
@@ -236,7 +234,7 @@ class SaturationFilter(BaseFilter):
         self.update_callback()
 
     def apply(self, image):
-        if self.config['Saturation'] == 1.0:  # No change in saturation
+        if self.config['Saturation'] == 1.0:
             return image
 
         # Convert to HSV, adjust saturation, and convert back to BGR
@@ -246,30 +244,75 @@ class SaturationFilter(BaseFilter):
         adjusted_image = cv.cvtColor(hsv_image.astype("uint8"), cv.COLOR_HSV2BGR)
         return adjusted_image
 
-# class DilationFilter(BaseFilter):
-#     def __init__(self):
-#         super().__init__()
-#         self.config = {'kernel_size': 3}  # Default kernel size
+class DilationFilter(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {'dilation_size': 1}
 
-#     def configure(self, config_frame, update_callback):
-#         # Implementation for configuration UI with a slider for kernel_size
-#         # ...
+    def configure(self):
+        Label(self.config_frame, text="Dilation Size:").pack()
+        dilation_size_scale = Scale(self.config_frame, from_=1, to=10, orient=HORIZONTAL,
+                                    command=self.on_dilation_size_change)
+        dilation_size_scale.set(self.config['dilation_size'])  # Set to current value in config
+        dilation_size_scale.pack()
 
-#     def apply(self, image):
-#         kernel_size = self.config['kernel_size']
-#         kernel = np.ones((kernel_size, kernel_size), np.uint8)
-#         return cv.dilate(image, kernel, iterations=1)
+    def on_dilation_size_change(self, val):
+        self.config['dilation_size'] = int(val)
+        self.update_callback()
+
+    def apply(self, image):
+        kernel_size = self.config['dilation_size']
+        kernel = cv.getStructuringElement(cv.MORPH_RECT, (kernel_size, kernel_size))
+        return cv.dilate(image, kernel)
     
-# class ErosionFilter(BaseFilter):
-#     def __init__(self):
-#         super().__init__()
-#         self.config = {'kernel_size': 3}  # Default kernel size
+class ErosionFilter(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {'erosion_size': 1}
 
-#     def configure(self, config_frame, update_callback):
-#         # Implementation for configuration UI with a slider for kernel_size
-#         # ...
+    def configure(self):
+        Label(self.config_frame, text="Erosion Size:").pack()
+        erosion_size_scale = Scale(self.config_frame, from_=1, to=10, orient=HORIZONTAL,
+                                   command=self.on_erosion_size_change)
+        erosion_size_scale.set(self.config['erosion_size'])  # Set to current value in config
+        erosion_size_scale.pack()
 
-#     def apply(self, image):
-#         kernel_size = self.config['kernel_size']
-#         kernel = np.ones((kernel_size, kernel_size), np.uint8)
-#         return cv.erode(image, kernel, iterations=1)
+    def on_erosion_size_change(self, val):
+        self.config['erosion_size'] = int(val)
+        self.update_callback()
+
+    def apply(self, image):
+        kernel_size = self.config['erosion_size']
+        kernel = cv.getStructuringElement(cv.MORPH_RECT, (kernel_size, kernel_size))
+        return cv.erode(image, kernel)
+
+class ThresholdFilter(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {'threshold_value': 127, 'max_value': 255}
+
+    def configure(self):
+        Label(self.config_frame, text="Threshold Value:").pack()
+        threshold_scale = Scale(self.config_frame, from_=0, to=255, orient=HORIZONTAL,
+                                command=self.on_threshold_value_change)
+        threshold_scale.set(self.config['threshold_value'])
+        threshold_scale.pack()
+
+        Label(self.config_frame, text="Max Value:").pack()
+        max_value_scale = Scale(self.config_frame, from_=0, to=255, orient=HORIZONTAL,
+                                command=self.on_max_value_change)
+        max_value_scale.set(self.config['max_value'])
+        max_value_scale.pack()
+
+    def on_threshold_value_change(self, val):
+        self.config['threshold_value'] = int(val)
+        self.update_callback()
+
+    def on_max_value_change(self, val):
+        self.config['max_value'] = int(val)
+        self.update_callback()
+
+    def apply(self, image):
+        _, thresholded_image = cv.threshold(image, self.config['threshold_value'], 
+                                            self.config['max_value'], cv.THRESH_BINARY)
+        return thresholded_image
