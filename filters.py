@@ -62,7 +62,7 @@ class HSVFilter(BaseFilter):
         # Add a new filter configuration with default values
         new_filter_config = {'center': [0, 0, 0], 'thresholds': [89, 255, 255]}
         self.config['HSV_ranges'].append(new_filter_config)
-        self.filter_listbox.insert(END, f"Filter {len(self.config['HSV_ranges'])}")
+        self.filter_listbox.insert(END, f"Filter {len(self.config['HSV_ranges'])-1}")
         update_callback()
 
     def on_filter_select(self, event, update_callback):
@@ -75,8 +75,6 @@ class HSVFilter(BaseFilter):
         if self.selected_filter_index is None:
             return
         
-        print(f"selected_filter_index={self.selected_filter_index}")
-
         selected_filter = self.config['HSV_ranges'][self.selected_filter_index]
 
         # Create a new Toplevel window for the sliders
@@ -110,8 +108,6 @@ class HSVFilter(BaseFilter):
             bgr_color_image = np.uint8([[bgr_color]])
             hsv_color = cv.cvtColor(bgr_color_image, cv.COLOR_BGR2HSV)[0][0]
             selected_range['center'] = hsv_color.tolist()
-            print("hsvfilter mouse click detected")
-            #print(f"config={self.config}")
 
     def on_threshold_change(self, val, update_callback, h_s_v):
         if not self.config['HSV_ranges']:
@@ -123,8 +119,6 @@ class HSVFilter(BaseFilter):
 
         # Update the threshold based on whether h_s_v is 0 (hue), 1 (saturation), or 2 (value)
         selected_range['thresholds'][h_s_v] = int(val)
-
-        print(f"config={self.config}")
 
         update_callback()
 

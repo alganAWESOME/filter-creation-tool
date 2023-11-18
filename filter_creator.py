@@ -82,7 +82,6 @@ class FilterCreator:
             widget.destroy()
 
         if self.filter_index is not None:
-            print(f"filter_index={self.filter_index}")            
             selected_filter = self.filters[self.filter_index]
             selected_filter.configure(self.config_frame, self.update_filters)
 
