@@ -1,4 +1,3 @@
-import sys
 import cv2 as cv
 from tkinter import *
 from window_capture import WindowCapture
@@ -12,6 +11,7 @@ class FilterCreator:
         self.init_tkinter()
         self.current_screenshot = None
         self.current_filtered_image = None
+        self.filter_index = None
 
     def init_tkinter(self):
         self.root = Tk()
@@ -27,7 +27,7 @@ class FilterCreator:
         # Frame for filter configuration
         self.config_frame = Frame(self.root)
         self.config_frame.pack(side=BOTTOM)
-        self.filter_list.bind('<<ListboxSelect>>', lambda e: self.update_config_frame())
+        self.filter_list.bind('<<ListboxSelect>>', lambda e: self.update_filter_index())
 
         # Add "Move Up", "Move Down", "Delete" and "Save Filter" buttons
         Button(self.root, text="Move Up", command=self.move_filter_up).pack()
@@ -43,12 +43,12 @@ class FilterCreator:
         filter_window = Toplevel(self.root)
         filter_window.title("Select Filter Type")
 
-        # List all attributes of the filters module
+        # List all classes of the filters module
         filter_options = [attr for attr in dir(filters) 
               if isinstance(getattr(filters, attr), type) and 
               getattr(filters, attr).__module__ == filters.__name__]
 
-        # Dynamically create buttons for each filter type
+        # Create buttons for each filter type
         for option in filter_options:
             Button(filter_window, text=option, 
                 command=lambda name=option: self.create_filter(name, filter_window)).pack()
@@ -57,7 +57,6 @@ class FilterCreator:
         try:
             # Get the class from the filters module using the filter_name string
             filter_class = getattr(filters, filter_name)
-
             # Instantiate the filter class
             new_filter = filter_class()
         except AttributeError:
@@ -70,15 +69,21 @@ class FilterCreator:
         self.filters.append(new_filter)
         self.filter_list.insert(END, filter_name)
         filter_window.destroy()
-
+    
+    def update_filter_index(self):
+        selected_index = self.filter_list.curselection()
+        if selected_index:
+            self.filter_index = selected_index[0]
+        self.update_config_frame()
+    
     def update_config_frame(self):
         # Clear current configuration frame
         for widget in self.config_frame.winfo_children():
             widget.destroy()
 
-        selected_index = self.filter_list.curselection()
-        if selected_index:
-            selected_filter = self.filters[selected_index[0]]
+        if self.filter_index is not None:
+            print(f"filter_index={self.filter_index}")            
+            selected_filter = self.filters[self.filter_index]
             selected_filter.configure(self.config_frame, self.update_filters)
 
     def move_filter_up(self):
@@ -152,9 +157,8 @@ class FilterCreator:
     def on_mouse_click(self, event, x, y, flags, param, source):
         if event == cv.EVENT_LBUTTONDOWN:
             # Handle the mouse click event based on the source (original or filtered)
-            selected_index = self.filter_list.curselection()
-            if selected_index and (self.current_screenshot is not None or self.current_filtered_image is not None):
-                selected_filter = self.filters[selected_index[0]]
+            if self.filter_index is not None and (self.current_screenshot is not None or self.current_filtered_image is not None):
+                selected_filter = self.filters[self.filter_index]
                 if hasattr(selected_filter, 'on_mouse_click'):
                     # Pass the appropriate image based on the source
                     source_image = self.current_filtered_image if source == "filtered" else self.current_screenshot

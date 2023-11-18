@@ -1,6 +1,6 @@
 # Quickly create OpenCV filter presets
 
-This project lets you quickly layer OpenCV filters and save this as a preset. You can easily change the order of the filters. It also lets you configure filters by interacting with the screen. For example, you can configure an HSV filter by picking a color from the screen capture.
+This project lets you quickly layer OpenCV filters and save filter presets. You can easily change the order of the filters. It also lets you configure filters by interacting with the screen. For example, you can configure an HSV filter by picking a color from the screen capture.
 
 # Installation
 
@@ -19,7 +19,7 @@ It's currently Windows-only because of `window_capture.py`.
 
 ## Create a filter preset with `filter_creator.py`
 
-1. In `filter_creator.py`, replace <WINDOW_NAME> with the window you want to view.
+1. In `filter_creator.py`, enter a window name inside `FilterCreator()` with the window you want to view. Run the python program.
 2. Click `Add Filter` in the UI. Currently, there are only a few supported filters, but it's easy to expand.
 3. Your new filter will be visible in the UI. Click on it to adjust its parameters.
 4. Add more filters and reorder them as you wish.
