@@ -313,6 +313,10 @@ class ThresholdFilter(BaseFilter):
         self.update_callback()
 
     def apply(self, image):
-        _, thresholded_image = cv.threshold(image, self.config['threshold_value'], 
-                                            self.config['max_value'], cv.THRESH_BINARY)
-        return thresholded_image
+        # Convert the image to grayscale
+        gray_image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+        # Apply binary thresholding to the grayscale image
+        threshold_value = self.config['threshold_value']
+        max_value = self.config['max_value']
+        _, binary_image = cv.threshold(gray_image, threshold_value, max_value, cv.THRESH_BINARY)
+        return binary_image

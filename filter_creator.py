@@ -34,6 +34,7 @@ class FilterCreator:
         Button(self.root, text="Move Down", command=self.move_filter_down).pack()
         Button(self.root, text='Delete', command=self.delete_filter).pack()
         Button(self.root, text="Save Filter", command=self.save_filters).pack()
+        Button(self.root, text="Load Filter", command=self.load_preset).pack()
 
         # Entry to name the filter preset
         self.preset_name_entry = Entry(self.root)
@@ -200,6 +201,60 @@ class FilterCreator:
                 json.dump({preset_name: preset_data}, file, indent=4)
 
         print(f"Preset '{preset_name}' saved.")
+
+    def load_preset(self):
+        if not os.path.exists('filters.json'):
+            print("No saved filters found.")
+            return
+
+        with open('filters.json', 'r') as file:
+            presets = json.load(file)
+
+        preset_window = Toplevel(self.root)
+        preset_window.title("Load Filter Preset")
+
+        preset_listbox = Listbox(preset_window)
+        preset_listbox.pack()
+
+        for preset_name in presets.keys():
+            preset_listbox.insert(END, preset_name)
+
+        Button(preset_window, text="Load Selected Preset",
+               command=lambda: self.on_preset_selected(preset_listbox, presets, preset_window)).pack()
+
+    def on_preset_selected(self, preset_listbox, presets, preset_window):
+        selected_index = preset_listbox.curselection()
+        if not selected_index:
+            print("Please select a preset.")
+            return
+
+        selected_preset_name = preset_listbox.get(selected_index)
+        selected_preset = presets[selected_preset_name]
+
+        self.apply_selected_preset(selected_preset, preset_window)
+
+    def apply_selected_preset(self, selected_preset, preset_window):
+        new_filters = []
+        self.filter_list.delete(0, END)
+
+        for filter_config in selected_preset:
+            filter_type = filter_config["type"]
+            filter_class = getattr(filters, filter_type, None)
+            self.filter_list.insert(END, filter_type)
+            if filter_class is None:
+                print(f"Unknown filter type: {filter_type}")
+                continue
+
+            filter_instance = filter_class()
+            filter_instance.config_frame = self.config_frame
+            filter_instance.update_callback = self.update_filters
+            filter_instance.config = filter_config["config"]
+            new_filters.append(filter_instance)
+
+        self.filters = new_filters
+
+        # Close the preset window after applying the preset
+        preset_window.destroy()
 
 def main():
     filter = FilterCreator("Toontown Offline")

@@ -37,4 +37,4 @@ my_filtered_image = my_filter.apply(image)
 
 # Contribution
 
-[Here's a GPT](https://chat.openai.com/g/g-84Wr6Wyxe-filter-class-creator) that will will help you create new filters for `filters.py`.
+[Here's a GPT](https://chat.openai.com/g/g-84Wr6Wyxe-filter-class-creator) that will will help you create new filters for `filters.py`. Copy and paste the generated class into `filters.py`.
