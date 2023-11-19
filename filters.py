@@ -320,3 +320,60 @@ class ThresholdFilter(BaseFilter):
         max_value = self.config['max_value']
         _, binary_image = cv.threshold(gray_image, threshold_value, max_value, cv.THRESH_BINARY)
         return binary_image
+
+class BrightnessCountFilter(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        # Initialize configuration with default values
+        self.config = {
+            'brightness_threshold': 128,
+            'pixel_count_threshold': 1000
+        }
+
+    def configure(self):
+        # Create sliders for brightness and pixel count thresholds
+        Label(self.config_frame, text="Brightness Threshold:").pack()
+        brightness_scale = Scale(self.config_frame, from_=0, to=255, orient=HORIZONTAL,
+                                 command=self.on_brightness_threshold_change)
+        brightness_scale.set(self.config['brightness_threshold'])
+        brightness_scale.pack()
+
+        Label(self.config_frame, text="Pixel Count Threshold:").pack()
+        pixel_count_scale = Scale(self.config_frame, from_=0, to=10000, orient=HORIZONTAL,
+                                  command=self.on_pixel_count_threshold_change)
+        pixel_count_scale.set(self.config['pixel_count_threshold'])
+        pixel_count_scale.pack()
+
+    def on_brightness_threshold_change(self, val):
+        self.config['brightness_threshold'] = int(val)
+        self.update_callback()
+
+    def on_pixel_count_threshold_change(self, val):
+        self.config['pixel_count_threshold'] = int(val)
+        self.update_callback()
+
+    def apply(self, image):
+        if len(image.shape) == 2:
+            grayscale = image
+        else:
+            # Convert the image to grayscale
+            grayscale = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+        # Count pixels above the brightness threshold
+        count = cv.countNonZero(cv.threshold(grayscale, self.config['brightness_threshold'], 255, cv.THRESH_BINARY)[1])
+
+        # Return original image if count exceeds the pixel count threshold, else return black image
+        if count >= self.config['pixel_count_threshold']:
+            return image
+        else:
+            return np.zeros(image.shape, dtype=image.dtype)
+
+class Grayscale(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {}
+
+    def configure(self):
+        pass
+
+    def apply(self, image):
+        return cv.cvtColor(image, cv.COLOR_BGR2GRAY)
