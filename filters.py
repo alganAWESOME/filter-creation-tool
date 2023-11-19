@@ -377,3 +377,75 @@ class Grayscale(BaseFilter):
 
     def apply(self, image):
         return cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+    
+class CropFilter(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {'crops': []}
+        self.selected_crop_index = None
+        self.temporary_crop_start = None
+
+    def configure(self):
+        self.crop_listbox = Listbox(self.config_frame)
+        self.crop_listbox.pack()
+        self.crop_listbox.bind('<<ListboxSelect>>', lambda e: self.on_crop_select(e))
+        self._update_crop_listbox()
+
+        Button(self.config_frame, text="Add Crop", command=self.add_crop).pack()
+        Button(self.config_frame, text="Delete Crop", command=self.delete_crop).pack()
+
+    def _update_crop_listbox(self):
+        self.crop_listbox.delete(0, END)
+        for i, _ in enumerate(self.config['crops']):
+            self.crop_listbox.insert(END, f"Crop {i}")
+
+    def add_crop(self):
+        new_crop_config = {'top_left': [0, 0], 'bottom_right': [100, 100]}
+        self.config['crops'].append(new_crop_config)
+        self._update_crop_listbox()
+        self.update_callback()
+
+    def delete_crop(self):
+        if self.selected_crop_index is None:
+            return
+
+        if 0 <= self.selected_crop_index < len(self.config['crops']):
+            del self.config['crops'][self.selected_crop_index]
+
+        self._update_crop_listbox()
+        self.update_callback()
+
+    def on_crop_select(self, event):
+        selection = event.widget.curselection()
+        if selection:
+            self.selected_crop_index = selection[0]
+
+    def on_mouse_click(self, event, x, y, flags, param, image, source=None):
+        if event == cv.EVENT_LBUTTONDOWN and image is not None:
+            if self.temporary_crop_start:
+                selected_crop = self.config['crops'][self.selected_crop_index]
+                selected_crop['top_left'] = list(self.temporary_crop_start)
+                selected_crop['bottom_right'] = [x, y]
+                self.temporary_crop_start = None
+            else:
+                self.temporary_crop_start = (x, y)
+
+    def apply(self, image):
+        if not self.config['crops']:
+            return image
+
+        final_mask = np.zeros(image.shape[:2], dtype=np.uint8)
+
+        for crop in self.config['crops']:
+            top_left, bottom_right = crop['top_left'], crop['bottom_right']
+            crop_mask = np.zeros(image.shape[:2], dtype=np.uint8)
+            cv.rectangle(crop_mask, tuple(top_left), tuple(bottom_right), 255, -1)
+            final_mask = cv.bitwise_or(final_mask, crop_mask)
+
+        return cv.bitwise_and(image, image, mask=final_mask)
+
+    def serialize_config(self):
+        return {
+            "type": self.__class__.__name__,
+            "config": {"crops": self.config['crops']}
+        }
