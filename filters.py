@@ -7,6 +7,7 @@ class BaseFilter:
         self.config = None
         self.config_frame = None
         self.update_callback = None
+        self.visible = True
 
     def configure(self):
         raise NotImplementedError

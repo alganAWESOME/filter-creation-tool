@@ -33,6 +33,7 @@ class FilterCreator:
         Button(self.root, text="Move Up", command=self.move_filter_up).pack()
         Button(self.root, text="Move Down", command=self.move_filter_down).pack()
         Button(self.root, text='Delete', command=self.delete_filter).pack()
+        Button(self.root, text='Toggle Visibility', command=self.toggle_visibility).pack()
         Button(self.root, text="Save Filter", command=self.save_filters).pack()
         Button(self.root, text="Load Filter", command=self.load_preset).pack()
 
@@ -117,6 +118,12 @@ class FilterCreator:
             self.filters.pop(selected_index[0])
             self.filter_list.delete(selected_index[0])
 
+    def toggle_visibility(self):
+        selected_index = self.filter_list.curselection()
+        if selected_index:
+            idx = selected_index[0]
+            self.filters[idx].visible = not self.filters[idx].visible
+
     def update_filters(self):
         # Refreshes the filters; called as a callback from filter configuration
         self.apply_filters()
@@ -125,7 +132,8 @@ class FilterCreator:
         if self.current_screenshot is not None:
             self.current_filtered_image = self.current_screenshot.copy()
             for filter_obj in self.filters:
-                self.current_filtered_image = filter_obj.apply(self.current_filtered_image)
+                if filter_obj.visible:
+                    self.current_filtered_image = filter_obj.apply(self.current_filtered_image)
             cv.imshow("Filtered", self.current_filtered_image)
 
     def start(self):
