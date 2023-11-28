@@ -19,11 +19,9 @@ It's currently Windows-only because of `window_capture.py`.
 
 ## Create a filter preset with `filter_creator.py`
 
-1. In `filter_creator.py`, enter a window name inside `FilterCreator()` with the window you want to view. Run the python program.
-2. Click `Add Filter` in the UI. Currently, there are only a few supported filters, but it's easy to expand.
-3. Your new filter will be visible in the UI. Click on it to adjust its parameters.
-4. Add more filters and reorder them as you wish.
-5. Name your filter and click `Save Filter`.
+1. In `filter_creator.py`, replace `FilterCreator("Toontown Offline")` with `FilterCreator("<your_window_name>")`. Run the python program.
+2. Add filters (e.g. CropFilter, GuassianBlur, CannyEdgeDetector) and reorder them as you wish. Some filters let you interact with the screen, for example with the CropFilter, you can click on the screen to define the top-left and bottom-right of your crop. With HSVFilter you can pick a color from the screen.
+3. Give your preset a name and click Save Filter. This will save your filter into `filters.json`.
 
 ## Use your filter with `apply_filter.py`
 
@@ -34,6 +32,8 @@ from apply_filter import ApplyFilter
 my_filter = ApplyFilter("<filter_preset_name_that_you_wrote>")
 my_filtered_image = my_filter.apply(image)
 ```
+
+For now, if you want to use the API in your own repo, you need to copy `filters.py`, `filters.json` (contains your filter presets) and `apply_filter.py` into your own directory.
 
 # Contribution
 
