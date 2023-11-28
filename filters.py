@@ -1,10 +1,11 @@
 import cv2 as cv
 import numpy as np
 from tkinter import *
+import base64
 
 class BaseFilter:
     def __init__(self):
-        self.config = None
+        self.config = {}
         self.config_frame = None
         self.update_callback = None
         self.visible = True
@@ -37,6 +38,10 @@ class BaseFilter:
             "type": self.__class__.__name__,
             "config": config_serializable
         }
+
+    @staticmethod
+    def deserialize_config(config):
+        return config
 
 class HSVFilter(BaseFilter):
     def __init__(self):
@@ -322,12 +327,12 @@ class ThresholdFilter(BaseFilter):
         _, binary_image = cv.threshold(gray_image, threshold_value, max_value, cv.THRESH_BINARY)
         return binary_image
 
-class BrightnessCountFilter(BaseFilter):
+class MinimumPixelCountFilter(BaseFilter):
     def __init__(self):
         super().__init__()
         # Initialize configuration with default values
         self.config = {
-            'brightness_threshold': 128,
+            'brightness_threshold': 0,
             'pixel_count_threshold': 1000
         }
 
@@ -339,7 +344,7 @@ class BrightnessCountFilter(BaseFilter):
         brightness_scale.set(self.config['brightness_threshold'])
         brightness_scale.pack()
 
-        Label(self.config_frame, text="Pixel Count Threshold:").pack()
+        Label(self.config_frame, text="Minimum Pixel Count:").pack()
         pixel_count_scale = Scale(self.config_frame, from_=0, to=10000, orient=HORIZONTAL,
                                   command=self.on_pixel_count_threshold_change)
         pixel_count_scale.set(self.config['pixel_count_threshold'])
@@ -353,7 +358,7 @@ class BrightnessCountFilter(BaseFilter):
         self.config['pixel_count_threshold'] = int(val)
         self.update_callback()
 
-    def apply(self, image):
+    def apply(self, image, min_threshold=True):
         if len(image.shape) == 2:
             grayscale = image
         else:
@@ -363,12 +368,22 @@ class BrightnessCountFilter(BaseFilter):
         count = cv.countNonZero(cv.threshold(grayscale, self.config['brightness_threshold'], 255, cv.THRESH_BINARY)[1])
 
         # Return original image if count exceeds the pixel count threshold, else return black image
-        if count >= self.config['pixel_count_threshold']:
-            return image
+        if min_threshold:
+            if count >= self.config['pixel_count_threshold']:
+                return image
         else:
-            return np.zeros(image.shape, dtype=image.dtype)
+            if count <= self.config['pixel_count_threshold']:
+                return image
+        return np.zeros(image.shape, dtype=image.dtype)
 
-class Grayscale(BaseFilter):
+class MaxPixelCountFilter(MinimumPixelCountFilter):
+    def __init__(self):
+        super().__init__()
+
+    def apply(self, image):
+        super().apply(image, min_threshold=False)
+
+class GrayscaleFilter(BaseFilter):
     def __init__(self):
         super().__init__()
         self.config = {}
@@ -386,14 +401,14 @@ class CropFilter(BaseFilter):
         self.selected_crop_index = None
         self.temporary_crop_start = None
 
-    def configure(self):
+    def configure(self, mode='Crop'):
         self.crop_listbox = Listbox(self.config_frame)
         self.crop_listbox.pack()
         self.crop_listbox.bind('<<ListboxSelect>>', lambda e: self.on_crop_select(e))
         self._update_crop_listbox()
 
-        Button(self.config_frame, text="Add Crop", command=self.add_crop).pack()
-        Button(self.config_frame, text="Delete Crop", command=self.delete_crop).pack()
+        Button(self.config_frame, text=f"Add {mode}", command=self.add_crop).pack()
+        Button(self.config_frame, text=f"Delete {mode}", command=self.delete_crop).pack()
 
     def _update_crop_listbox(self):
         self.crop_listbox.delete(0, END)
@@ -425,7 +440,7 @@ class CropFilter(BaseFilter):
         if event == cv.EVENT_LBUTTONDOWN and image is not None:
             if self.temporary_crop_start:
                 selected_crop = self.config['crops'][self.selected_crop_index]
-                selected_crop['top_left'] = list(self.temporary_crop_start)
+                selected_crop['top_lFeft'] = list(self.temporary_crop_start)
                 selected_crop['bottom_right'] = [x, y]
                 self.temporary_crop_start = None
             else:
@@ -450,3 +465,256 @@ class CropFilter(BaseFilter):
             "type": self.__class__.__name__,
             "config": {"crops": self.config['crops']}
         }
+
+class BlockFilter(CropFilter):
+    def __init__(self):
+        super().__init__()
+
+    def configure(self, mode='Block'):
+        return super().configure(mode)
+    
+    def apply(self, image):
+        if not self.config['crops']:
+            return image
+
+        # Start with a mask that covers the whole image
+        final_mask = np.ones(image.shape[:2], dtype=np.uint8) * 255
+
+        for crop in self.config['crops']:
+            top_left, bottom_right = crop['top_left'], crop['bottom_right']
+            # Set the cropped areas to zero (black) in the mask
+            cv.rectangle(final_mask, tuple(top_left), tuple(bottom_right), 0, -1)
+
+        # Apply the inverted mask to keep the rest of the image
+        return cv.bitwise_and(image, image, mask=final_mask)
+
+class BlackFilter(BaseFilter):
+    def __init__(self):
+        super().__init__()
+    
+    def configure(self):
+        pass
+    
+    def apply(self, image):
+        # Create a mask where black pixels are marked
+        # Assuming the image is in RGB format
+        black_pixels_mask = (image[:, :, 0] == 0) & \
+                            (image[:, :, 1] == 0) & \
+                            (image[:, :, 2] == 0)
+
+        # Create an empty image in grayscale format
+        filtered_image = np.zeros(image.shape[:2], dtype=np.uint8)
+
+        # Change black pixels in the original image to white in the filtered image
+        filtered_image[black_pixels_mask] = 255
+
+        return filtered_image
+
+class ContourFilter(BaseFilter):
+    def __init__(self):
+        super().__init__()
+
+    def configure(self):
+        pass
+
+    def apply(self, image):
+        # Check if the image is binary
+        if not self._is_binary(image):
+            return image
+
+        # Find contours
+        contours, _ = cv.findContours(image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+        # Draw contours on a blank canvas
+        contour_image = np.zeros_like(image)
+        cv.drawContours(contour_image, contours, -1, (255, 255, 255), thickness=2)
+
+        return contour_image
+
+    def _is_binary(self, image):
+        # Check if the image is binary AND grayscale
+        if len(np.unique(image)) == 2 and len(image.shape) <= 2:
+            return True
+        return False
+
+class ContourAreaFilter(ContourFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {
+            "min_area": 0,
+            "max_area": 20000
+        }
+
+    def configure(self):
+        min_area_slider = Scale(self.config_frame, from_=0, to=20000, orient=HORIZONTAL, label="Min Area", command=self._on_min_change)
+        min_area_slider.set(self.config["min_area"])
+        min_area_slider.pack()
+
+        max_area_slider = Scale(self.config_frame, from_=0, to=20000, orient=HORIZONTAL, label="Max Area", command=self._on_max_change)
+        max_area_slider.set(self.config["max_area"])
+        max_area_slider.pack()
+
+    def _on_min_change(self, val):
+        self.config['min_area'] = int(val)
+
+    def _on_max_change(self, val):
+        self.config['max_area'] = int(val)
+
+    def apply(self, img):
+        if not self._is_binary(img):
+            return img
+        
+        contours, _ = cv.findContours(img, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+
+        mask = np.zeros_like(img)
+        for contour in contours:
+            area = cv.contourArea(contour)
+            if self.config["min_area"] < area < self.config["max_area"]:
+                cv.drawContours(mask, [contour], -1, (255, 255, 255), thickness=cv.FILLED)
+
+        result = cv.bitwise_and(img, mask)
+        return mask
+
+class ContourCropFilter(CropFilter):
+    def __init__(self):
+        super().__init__()
+
+    def _is_binary(self, image):
+        # Check if the image is binary AND grayscale
+        if len(np.unique(image)) == 2 and len(image.shape) <= 2:
+            return True
+        return False
+
+    def apply(self, image):
+        if not self.config['crops'] or not self._is_binary(image):
+            return image
+
+        final_image = np.zeros_like(image)
+        contours, _ = cv.findContours(image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+        for crop in self.config['crops']:
+            top_left, bottom_right = crop['top_left'], crop['bottom_right']
+            crop_rect = cv.rectangle(np.zeros_like(image), tuple(top_left), tuple(bottom_right), 255, -1)
+
+            for contour in contours:
+                if self.checkContourInCrop(contour, crop_rect):
+                    cv.drawContours(final_image, [contour], -1, 255, thickness=cv.FILLED)
+
+        return final_image
+
+    @staticmethod
+    def checkContourInCrop(contour, crop_rect):
+        for point in contour:
+            if crop_rect[point[0][1], point[0][0]] == 255:
+                return True
+        return False
+    
+class CannyEdgeDetector(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {
+            'Threshold1': 100,
+            'Threshold2': 200,
+            'ApertureSize': 3,
+            'L2Gradient': False
+        }
+
+    def configure(self):
+        Label(self.config_frame, text="Threshold1:").pack()
+        threshold1_scale = Scale(self.config_frame, from_=0, to=255, orient=HORIZONTAL,
+                                 command=lambda val: self.on_threshold1_change(val))
+        threshold1_scale.set(self.config['Threshold1'])
+        threshold1_scale.pack()
+
+        Label(self.config_frame, text="Threshold2:").pack()
+        threshold2_scale = Scale(self.config_frame, from_=0, to=255, orient=HORIZONTAL,
+                                 command=lambda val: self.on_threshold2_change(val))
+        threshold2_scale.set(self.config['Threshold2'])
+        threshold2_scale.pack()
+
+        Label(self.config_frame, text="Aperture Size:").pack()
+        aperture_size_scale = Scale(self.config_frame, from_=3, to=7, resolution=2, orient=HORIZONTAL,
+                                    command=lambda val: self.on_aperture_size_change(val))
+        aperture_size_scale.set(self.config['ApertureSize'])
+        aperture_size_scale.pack()
+
+        self.l2_gradient_var = IntVar(value=self.config['L2Gradient'])
+        l2_gradient_check = Checkbutton(self.config_frame, text="L2 Gradient",
+                                        variable=self.l2_gradient_var,
+                                        command=self.on_l2_gradient_change)
+        l2_gradient_check.pack()
+
+    def on_threshold1_change(self, val):
+        self.config['Threshold1'] = int(val)
+        self.update_callback()
+
+    def on_threshold2_change(self, val):
+        self.config['Threshold2'] = int(val)
+        self.update_callback()
+
+    def on_aperture_size_change(self, val):
+        self.config['ApertureSize'] = int(val)
+        self.update_callback()
+
+    def on_l2_gradient_change(self):
+        self.config['L2Gradient'] = bool(self.l2_gradient_var.get())
+        self.update_callback()
+
+    def apply(self, image):
+        return cv.Canny(image,
+                            self.config['Threshold1'],
+                            self.config['Threshold2'],
+                            apertureSize=self.config['ApertureSize'],
+                            L2gradient=self.config['L2Gradient'])
+    
+class GaussianBlur(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {'Kernel Size': 5}
+
+    def configure(self):
+        Label(self.config_frame, text="Kernel Size:").pack()
+        kernel_size_scale = Scale(self.config_frame, from_=1, to=31, resolution=2, orient=HORIZONTAL,
+                                  command=self.on_kernel_size_change)
+        kernel_size_scale.set(self.config['Kernel Size'])
+        kernel_size_scale.pack()
+
+    def on_kernel_size_change(self, val):
+        self.config['Kernel Size'] = int(val)
+        self.update_callback()
+
+    def apply(self, image):
+        # Ensure the kernel size is odd
+        kernel_size = int(self.config['Kernel Size'])
+        if kernel_size % 2 == 0:
+            kernel_size += 1
+
+        # Apply Gaussian Blur
+        blurred_image = cv.GaussianBlur(image, (kernel_size, kernel_size), 0)
+        return blurred_image
+
+class GaussianBlur(BaseFilter):
+    def __init__(self):
+        super().__init__()
+        self.config = {'Kernel Size': 5}
+
+    def configure(self):
+        Label(self.config_frame, text="Kernel Size:").pack()
+        kernel_size_scale = Scale(self.config_frame, from_=1, to=31, resolution=2, orient=HORIZONTAL,
+                                  command=self.on_kernel_size_change)
+        kernel_size_scale.set(self.config['Kernel Size'])
+        kernel_size_scale.pack()
+
+    def on_kernel_size_change(self, val):
+        self.config['Kernel Size'] = int(val)
+        self.update_callback()
+
+    def apply(self, image):
+        # Ensure the kernel size is odd
+        kernel_size = int(self.config['Kernel Size'])
+        if kernel_size % 2 == 0:
+            kernel_size += 1
+
+        # Apply Gaussian Blur
+        blurred_image = cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
+        return blurred_image

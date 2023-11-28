@@ -24,7 +24,7 @@ class ApplyFilter:
             filter_type = filter_config["type"]
 
             filter_obj = getattr(filters, filter_type)()
-            filter_obj.config = filter_config["config"]
+            filter_obj.config = filter_obj.deserialize_config(filter_config["config"])
             preset_filters.append(filter_obj)
 
         return preset_filters
